@@ -69,6 +69,21 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const url = new URL(request.url);
+      const acceptHeader = request.headers.get("accept") ?? "";
+      if (
+        request.method === "GET" &&
+        url.pathname === "/" &&
+        acceptHeader.includes("application/json")
+      ) {
+        return new Response(JSON.stringify({ ok: true, message: "alive" }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+          },
+        });
+      }
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
