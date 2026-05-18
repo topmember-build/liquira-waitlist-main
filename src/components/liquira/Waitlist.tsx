@@ -39,7 +39,10 @@ export function Waitlist({ initialEmail = "" }: { initialEmail?: string }) {
     try {
       const res = await fetch("/api/public/waitlist", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({
           email: normalizedEmail,
           name,
@@ -47,9 +50,26 @@ export function Waitlist({ initialEmail = "" }: { initialEmail?: string }) {
           interests: picked,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Signup failed");
-      setEdition(data.edition);
+
+      const text = await res.text();
+      const contentType = res.headers.get("content-type") ?? "";
+      let data: { ok?: boolean; edition?: number; error?: string } | null = null;
+
+      if (contentType.includes("application/json")) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error(`Invalid JSON response: ${text.slice(0, 200)}`);
+        }
+      } else {
+        throw new Error(`Unexpected response from server: ${res.status} ${text.slice(0, 200)}`);
+      }
+
+      if (!res.ok) {
+        throw new Error(data?.error ?? `Signup failed (${res.status})`);
+      }
+
+      setEdition(data.edition ?? null);
       setSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
