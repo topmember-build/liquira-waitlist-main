@@ -130,94 +130,105 @@ export const Route = createFileRoute("/api/public/waitlist")({
           "Access-Control-Allow-Origin": "*",
         };
 
-        const ip = clientIp(request);
-        const rl = checkRateLimit(ip);
-        if (!rl.ok) {
+        try {
+          const ip = clientIp(request);
+          const rl = checkRateLimit(ip);
+          if (!rl.ok) {
+            return new Response(
+              JSON.stringify({ error: "Too many signups. Please try again later." }),
+              {
+                status: 429,
+                headers: { ...cors, "Retry-After": String(rl.retryAfter) },
+              },
+            );
+          }
+
+          let raw: unknown;
+          try {
+            raw = await request.json();
+          } catch {
+            return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+              status: 400,
+              headers: cors,
+            });
+          }
+
+          const parsed = BodySchema.safeParse(raw);
+          if (!parsed.success) {
+            return new Response(
+              JSON.stringify({ error: "Invalid input", issues: parsed.error.issues }),
+              { status: 400, headers: cors },
+            );
+          }
+
+          const { email, name, organization, interests } = parsed.data;
+          const nameValue = name?.trim() ? name : null;
+          const organizationValue = organization?.trim() ? organization : null;
+          const userAgent = request.headers.get("user-agent")?.slice(0, 500) ?? null;
+
+          let data: { edition_number: number; email: string } | null = null;
+          let lastError: unknown = null;
+          for (let attempt = 0; attempt < 4; attempt++) {
+            const referral_code = makeReferralCode();
+            const res = await supabaseAdmin
+              .from("waitlist_signups")
+              .upsert(
+                {
+                  email,
+                  name: nameValue,
+                  organization: organizationValue,
+                  interests,
+                  referral_code,
+                  referred_by: null,
+                  user_agent: userAgent,
+                  ip_address: ip ?? null,
+                },
+                { onConflict: "email", ignoreDuplicates: false },
+              )
+              .select("edition_number, email")
+              .single();
+
+            if (!res.error && res.data) {
+              data = res.data;
+              break;
+            }
+            lastError = res.error;
+            if (res.error?.code !== "23505") break;
+          }
+
+          if (!data) {
+            console.error("waitlist insert failed", lastError);
+            return new Response(JSON.stringify({ error: "Could not save signup" }), {
+              status: 500,
+              headers: cors,
+            });
+          }
+
+          void sendAdminNotification({
+            edition: data.edition_number,
+            email: data.email,
+            name: nameValue,
+            organization: organizationValue,
+            interests,
+          }).catch((err: unknown) => console.error("admin email failed", err));
+
           return new Response(
-            JSON.stringify({ error: "Too many signups. Please try again later." }),
+            JSON.stringify({
+              ok: true,
+              edition: data.edition_number,
+            }),
+            { status: 200, headers: cors },
+          );
+        } catch (error) {
+          console.error("waitlist endpoint failed", error);
+          return new Response(
+            JSON.stringify({ error: "An unexpected server error occurred" }),
             {
-              status: 429,
-              headers: { ...cors, "Retry-After": String(rl.retryAfter) },
+              status: 500,
+              headers: cors,
             },
           );
         }
-
-        let raw: unknown;
-        try {
-          raw = await request.json();
-        } catch {
-          return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-            status: 400,
-            headers: cors,
-          });
-        }
-
-        const parsed = BodySchema.safeParse(raw);
-        if (!parsed.success) {
-          return new Response(
-            JSON.stringify({ error: "Invalid input", issues: parsed.error.issues }),
-            { status: 400, headers: cors },
-          );
-        }
-
-        const { email, name, organization, interests } = parsed.data;
-        const nameValue = name?.trim() ? name : null;
-        const organizationValue = organization?.trim() ? organization : null;
-        const userAgent = request.headers.get("user-agent")?.slice(0, 500) ?? null;
-
-        let data: { edition_number: number; email: string } | null = null;
-        let lastError: unknown = null;
-        for (let attempt = 0; attempt < 4; attempt++) {
-          const referral_code = makeReferralCode();
-          const res = await supabaseAdmin
-            .from("waitlist_signups")
-            .upsert(
-              {
-                email,
-                name: nameValue,
-                organization: organizationValue,
-                interests,
-                referral_code,
-                referred_by: null,
-                user_agent: userAgent,
-                ip_address: ip ?? null,
-              },
-              { onConflict: "email", ignoreDuplicates: false },
-            )
-            .select("edition_number, email")
-            .single();
-
-          if (!res.error && res.data) {
-            data = res.data;
-            break;
-          }
-          lastError = res.error;
-          if (res.error?.code !== "23505") break;
-        }
-
-        if (!data) {
-          console.error("waitlist insert failed", lastError);
-          return new Response(JSON.stringify({ error: "Could not save signup" }), {
-            status: 500,
-            headers: cors,
-          });
-        }
-
-        void sendAdminNotification({
-          edition: data.edition_number,
-          email: data.email,
-          name: nameValue,
-          organization: organizationValue,
-          interests,
-        }).catch((err: unknown) => console.error("admin email failed", err));
-
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            edition: data.edition_number,
-          }),
-          { status: 200, headers: cors },
-        );
       },
     },
   },
