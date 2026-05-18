@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Sparkline, MiniBars } from "./Sparkline";
 import { BRAND } from "@/lib/brand";
+import { isValidEmail } from "@/lib/utils";
 
 const issuers = [
   { name: "Circle", style: "font-serif italic text-[15px]" },
@@ -15,8 +16,28 @@ const issuers = [
 
 export function Hero() {
   const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const emailId = useId();
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const normalized = email.trim();
+
+    if (!normalized) {
+      setError("Enter your email address");
+      return;
+    }
+
+    if (!isValidEmail(normalized)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
+    setError(null);
+    navigate({ to: "/waitlist", search: { email: normalized } });
+  };
+
   return (
     <section className="relative overflow-hidden">
       <div className="absolute inset-0 bg-hero-glow" />
@@ -58,10 +79,8 @@ export function Hero() {
 
             {/* command bar */}
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                navigate({ to: "/waitlist", search: email ? { email } : {} });
-              }}
+              noValidate
+              onSubmit={handleSubmit}
               className="relative mt-10 flex items-center gap-2 rounded-sm border border-border-strong bg-surface-2 p-1.5 shadow-card"
             >
               <span className="pl-3 pr-1 font-mono text-[13px] text-muted-foreground" aria-hidden>
@@ -73,7 +92,10 @@ export function Hero() {
               <input
                 id={emailId}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) setError(null);
+                }}
                 type="email"
                 placeholder="Enter your email to join the waitlist"
                 className="flex-1 bg-transparent py-3 font-mono text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none"
@@ -85,6 +107,9 @@ export function Hero() {
                 Join ↵
               </button>
             </form>
+            {error && (
+              <p className="mt-3 text-sm font-mono text-destructive">{error}</p>
+            )}
             <p className="mt-3 font-mono text-[10px] uppercase tracking-mono-wide text-muted-foreground">
               Try: EURC → JPYC · 100k USDC → BRZ
             </p>

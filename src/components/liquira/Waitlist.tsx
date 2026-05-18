@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Crosshairs } from "./Crosshair";
 import { BRAND } from "@/lib/brand";
+import { isValidEmail } from "@/lib/utils";
 
 const interests = [
   "Routing API",
@@ -25,6 +26,14 @@ export function Waitlist({ initialEmail = "" }: { initialEmail?: string }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || loading) return;
+
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) return;
+    if (!isValidEmail(normalizedEmail)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -32,7 +41,7 @@ export function Waitlist({ initialEmail = "" }: { initialEmail?: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email,
+          email: normalizedEmail,
           name,
           organization: org,
           interests: picked,
@@ -121,7 +130,7 @@ export function Waitlist({ initialEmail = "" }: { initialEmail?: string }) {
                   </p>
                 </div>
               ) : (
-                <form onSubmit={submit} className="mt-6 space-y-5">
+                <form noValidate onSubmit={submit} className="mt-6 space-y-5">
                   <Field label="email">
                     <input
                       required
