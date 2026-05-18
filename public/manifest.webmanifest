@@ -1,0 +1,15 @@
+{
+  "name": "Liquira · Native FX on Arc",
+  "short_name": "Liquira",
+  "description": "The native FX layer for stablecoin money. Cross-currency stablecoin payments on Arc with sub-basis-point slippage.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0e0c",
+  "theme_color": "#0a0e0c",
+  "icons": [
+    { "src": "/favicon-16x16.png", "sizes": "16x16", "type": "image/png" },
+    { "src": "/favicon-32x32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}
